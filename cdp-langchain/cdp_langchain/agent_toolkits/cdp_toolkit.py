@@ -71,7 +71,8 @@ class CdpToolkit(BaseToolkit):
             tools = [tool for tool in toolkit.get_tools() if tool.name == "get_wallet_details"]
             assert len(tools) == 1
 
-            llm = ChatOpenAI(model="gpt-4o-mini")
+            # Get configured LLM instance from wrapper
+            llm = cdp.get_llm()
             agent_executor = create_react_agent(llm, tools)
 
             example_query = "Tell me about your wallet"

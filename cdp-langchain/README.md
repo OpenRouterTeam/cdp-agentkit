@@ -22,8 +22,16 @@ Set the following environment variables:
 ```bash
 export CDP_API_KEY_NAME=<your-api-key-name>
 export CDP_API_KEY_PRIVATE_KEY=$'<your-private-key>'
-export OPENAI_API_KEY=<your-openai-api-key>
 export NETWORK_ID=base-sepolia  # Optional: Defaults to base-sepolia
+
+# LLM Configuration (choose one provider)
+# Option 1: OpenAI
+export OPENAI_API_KEY=<your-openai-api-key>
+
+# Option 2: OpenRouter
+export OPENROUTER_API_KEY=<your-openrouter-api-key>
+export OPENROUTER_BASE_URL=https://openrouter.ai/api/v1  # Optional: Defaults to OpenRouter API
+export MODEL_NAME=gpt-4  # Optional: Defaults to gpt-4
 ```
 
 ## Usage
@@ -62,15 +70,20 @@ The toolkit provides the following tools:
 
 ### Using with an Agent
 
+The toolkit supports multiple LLM providers through the CdpAgentkitWrapper's configuration. The wrapper will automatically use OpenRouter if configured, otherwise falling back to OpenAI.
+
 ```python
 from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
 
-# Initialize LLM
-llm = ChatOpenAI(model="gpt-4o-mini")
+# Initialize CDP wrapper with LLM configuration
+cdp = CdpAgentkitWrapper()
 
 # Get tools and create agent
 tools = toolkit.get_tools()
+
+# The wrapper automatically configures the LLM based on your environment
+llm = cdp.get_llm()
 agent_executor = create_react_agent(llm, tools)
 
 # Example usage
@@ -88,6 +101,14 @@ Transferred 0.005 of eth to john2879.base.eth.
 Transaction hash for the transfer: 0x78c7c2878659a0de216d0764fc87eff0d38b47f3315fa02ba493a83d8e782d1e
 Transaction link for the transfer: https://sepolia.basescan.org/tx/0x78c7c2878659a0de216d0764fc87eff0d38b47f3315fa02ba493a83d8e782d1
 ```
+## LLM Configuration
+
+The toolkit supports two LLM providers:
+1. **OpenAI** (default) - Requires `OPENAI_API_KEY`
+2. **OpenRouter** - Requires `OPENROUTER_API_KEY`, with optional `OPENROUTER_BASE_URL` and `MODEL_NAME`
+
+The CdpAgentkitWrapper will automatically use OpenRouter if `OPENROUTER_API_KEY` is set, otherwise falling back to OpenAI configuration.
+
 ## CDP Tookit Specific Features
 
 ### Wallet Management

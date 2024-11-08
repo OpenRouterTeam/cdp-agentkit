@@ -6,6 +6,7 @@ from collections.abc import Callable
 from typing import Any
 
 from langchain_core.utils import get_from_dict_or_env
+from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, model_validator
 
 from cdp import Wallet
@@ -20,6 +21,9 @@ class CdpAgentkitWrapper(BaseModel):
     cdp_api_key_name: str | None = None
     cdp_api_key_private_key: str | None = None
     network_id: str | None = None
+    openrouter_api_key: str | None = None
+    openrouter_base_url: str | None = None
+    model_name: str = "gpt-4"
 
     @model_validator(mode="before")
     @classmethod
@@ -31,6 +35,18 @@ class CdpAgentkitWrapper(BaseModel):
         )
         network_id = get_from_dict_or_env(values, "network_id", "NETWORK_ID", "base-sepolia")
         wallet_data_json = values.get("cdp_wallet_data")
+
+        # Add OpenRouter configuration
+        openrouter_api_key = get_from_dict_or_env(
+            values, "openrouter_api_key", "OPENROUTER_API_KEY", None
+        )
+        openrouter_base_url = get_from_dict_or_env(
+            values,
+            "openrouter_base_url",
+            "OPENROUTER_BASE_URL",
+            "https://openrouter.ai/api/v1",
+        )
+        model_name = get_from_dict_or_env(values, "model_name", "MODEL_NAME", "gpt-4")
 
         try:
             from cdp import Cdp, Wallet, WalletData
@@ -56,6 +72,9 @@ class CdpAgentkitWrapper(BaseModel):
         values["cdp_api_key_name"] = cdp_api_key_name
         values["cdp_api_key_private_key"] = cdp_api_key_private_key
         values["network_id"] = network_id
+        values["openrouter_api_key"] = openrouter_api_key
+        values["openrouter_base_url"] = openrouter_base_url
+        values["model_name"] = model_name
 
         return values
 
@@ -71,6 +90,25 @@ class CdpAgentkitWrapper(BaseModel):
         wallet_data_dict["default_address_id"] = self.wallet.default_address.address_id
 
         return json.dumps(wallet_data_dict)
+
+    def get_llm(self) -> ChatOpenAI:
+        """Get a configured LLM instance.
+
+        Returns:
+            ChatOpenAI: The configured LLM instance, using OpenRouter if configured,
+                       otherwise using default OpenAI configuration.
+        """
+        if self.openrouter_api_key:
+            return ChatOpenAI(
+                model=self.model_name,
+                openai_api_key=self.openrouter_api_key,
+                base_url=self.openrouter_base_url,
+                headers={
+                    "HTTP-Referer": "https://github.com/OpenRouterTeam/cdp-agentkit",
+                    "X-Title": "CDP AgentKit",
+                },
+            )
+        return ChatOpenAI(model=self.model_name)
 
     def run_action(self, func: Callable[..., str], **kwargs) -> str:
         """Run a CDP Action."""

@@ -7,6 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from cdp import Cdp, Wallet, WalletData
+from langchain_openai import ChatOpenAI
 from cdp_langchain import __version__
 from cdp_langchain.constants import CDP_LANGCHAIN_DEFAULT_SOURCE
 from cdp_langchain.utils import CdpAgentkitWrapper
@@ -46,6 +47,10 @@ def env_vars(monkeypatch: pytest.MonkeyPatch):
         "CDP_API_KEY_NAME": "test-cdp-api-key-name",
         "CDP_API_KEY_PRIVATE_KEY": "test-cdp-api-key-private-key",
         "NETWORK_ID": "base-sepolia",
+        "OPENAI_API_KEY": "test-openai-api-key",
+        "OPENROUTER_API_KEY": "test-openrouter-api-key",
+        "OPENROUTER_BASE_URL": "https://test.openrouter.ai/api/v1",
+        "MODEL_NAME": "test-model",
     }
     for key, value in test_vars.items():
         monkeypatch.setenv(key, value)
@@ -178,3 +183,71 @@ def test_cdp_configuration_error(
         CdpAgentkitWrapper()
 
     assert "Configuration error" in str(exc_info.value)
+
+
+def test_llm_configuration_with_openrouter(
+    env_vars: dict[str, str], mock_cdp_configure: Mock, mock_wallet_create: Mock
+):
+    """Test LLM configuration with OpenRouter."""
+    wrapper = CdpAgentkitWrapper()
+    llm = wrapper.get_llm()
+
+    assert isinstance(llm, ChatOpenAI)
+    assert llm.openai_api_key == env_vars["OPENROUTER_API_KEY"]
+    assert llm.base_url == env_vars["OPENROUTER_BASE_URL"]
+    assert llm.model == env_vars["MODEL_NAME"]
+    assert "HTTP-Referer" in llm.headers
+    assert "X-Title" in llm.headers
+
+
+def test_llm_configuration_with_openai(
+    env_vars: dict[str, str], mock_cdp_configure: Mock, mock_wallet_create: Mock, monkeypatch: pytest.MonkeyPatch
+):
+    """Test LLM configuration with OpenAI fallback."""
+    # Remove OpenRouter configuration
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_BASE_URL", raising=False)
+
+    wrapper = CdpAgentkitWrapper()
+    llm = wrapper.get_llm()
+
+    assert isinstance(llm, ChatOpenAI)
+    assert llm.model == env_vars["MODEL_NAME"]
+    assert not hasattr(llm, "base_url")
+
+
+def test_llm_configuration_with_direct_values(mock_cdp_configure: Mock, mock_wallet_create: Mock):
+    """Test LLM configuration with directly provided values."""
+    test_values = {
+        "cdp_api_key_name": "test-cdp-api-key-name",
+        "cdp_api_key_private_key": "test-cdp-api-key-private-key",
+        "network_id": "base-sepolia",
+        "openrouter_api_key": "test-openrouter-api-key",
+        "openrouter_base_url": "https://test.openrouter.ai/api/v1",
+        "model_name": "test-model",
+    }
+
+    wrapper = CdpAgentkitWrapper(**test_values)
+    llm = wrapper.get_llm()
+
+    assert isinstance(llm, ChatOpenAI)
+    assert llm.openai_api_key == test_values["openrouter_api_key"]
+    assert llm.base_url == test_values["openrouter_base_url"]
+    assert llm.model == test_values["model_name"]
+    assert "HTTP-Referer" in llm.headers
+    assert "X-Title" in llm.headers
+
+
+def test_llm_configuration_default_values(mock_cdp_configure: Mock, mock_wallet_create: Mock):
+    """Test LLM configuration with default values."""
+    test_values = {
+        "cdp_api_key_name": "test-cdp-api-key-name",
+        "cdp_api_key_private_key": "test-cdp-api-key-private-key",
+        "network_id": "base-sepolia",
+    }
+
+    wrapper = CdpAgentkitWrapper(**test_values)
+    llm = wrapper.get_llm()
+
+    assert isinstance(llm, ChatOpenAI)
+    assert llm.model == "gpt-4"  # Default model name
